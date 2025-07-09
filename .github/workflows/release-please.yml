@@ -1,0 +1,25 @@
+on:
+  push:
+    branches:
+      - master
+
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+  id-token: write
+
+name: Check Release
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create a release
+        uses: google-github-actions/release-please-action@v3
+        id: release
+        with:
+          release-type: simple
