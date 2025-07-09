@@ -1,0 +1,23 @@
+name: docker-stage-example
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy'
+        required: false
+        default: 'latest'
+      environment:
+        description: 'Target environment'
+        required: false
+        default: 'staging'
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Demo Step
+        run: |
+          echo "This is a demo workflow"
+          echo "Version: ${{ github.event.inputs.version }}"
+          echo "Environment: ${{ github.event.inputs.environment }}"

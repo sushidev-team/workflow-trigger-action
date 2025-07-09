@@ -1,0 +1,298 @@
+name: 'Workflow Trigger with Caching'
+description: 'Triggers GitHub workflows with intelligent caching and fallback mechanisms'
+author: 'Sushi Dev GmbH'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+  target_repo:
+    description: 'Target repository (owner/repo format)'
+    required: false
+    default: ${{ github.repository }}
+  workflow_prefix:
+    description: 'Workflow name prefix to filter (e.g., "docker-stage")'
+    required: false
+    default: 'docker-stage'
+  ref:
+    description: 'Git reference to trigger workflows on'
+    required: false
+    default: 'master'
+  cache_max_age:
+    description: 'Maximum cache age in seconds'
+    required: false
+    default: '1800'
+  workflow_inputs:
+    description: 'JSON string of inputs to pass to triggered workflows'
+    required: false
+    default: '{}'
+
+outputs:
+  triggered_workflows:
+    description: 'Number of workflows triggered'
+    value: ${{ steps.trigger.outputs.triggered_count }}
+  workflow_ids:
+    description: 'Comma-separated list of triggered workflow IDs'
+    value: ${{ steps.trigger.outputs.workflow_ids }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Environment
+      shell: bash
+      run: |
+        echo "🚀 Starting Workflow Trigger Action"
+        echo "Target Repository: ${{ inputs.target_repo }}"
+        echo "Workflow Prefix: ${{ inputs.workflow_prefix }}"
+        echo "Reference: ${{ inputs.ref }}"
+        echo "Cache Max Age: ${{ inputs.cache_max_age }}s"
+
+    - name: Get Workflows with Caching
+      id: get_workflows
+      shell: bash
+      run: |
+        get_workflows() {
+          local cache_file="workflows_cache.json"
+          local etag_file="workflows_etag.txt"
+          local max_age=${{ inputs.cache_max_age }}
+          
+          # 1. File-basiertes Caching prüfen
+          if [ -f "$cache_file" ]; then
+            local age=$(($(date +%s) - $(stat -c %Y "$cache_file" 2>/dev/null || stat -f %m "$cache_file" 2>/dev/null || echo 0)))
+            if [ $age -lt $max_age ]; then
+              echo "✅ Using fresh cache (age: ${age}s)"
+              cp "$cache_file" workflows.json
+              echo "cache_hit=true" >> $GITHUB_OUTPUT
+              return 0
+            fi
+          fi
+          
+          # 2. ETag-basiertes Caching
+          local etag_header=""
+          if [ -f "$etag_file" ] && [ -s "$etag_file" ]; then
+            local etag=$(cat "$etag_file")
+            if [ -n "$etag" ] && [ "$etag" != "null" ]; then
+              etag_header="-H \"If-None-Match: $etag\""
+            fi
+          fi
+          
+          # 3. API Request mit Fehlerbehandlung
+          echo "🔍 Fetching workflows from API..."
+          local response=$(curl -s -i -w "\n%{http_code}" \
+            -H "Authorization: token ${{ inputs.github_token }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            $etag_header \
+            "https://api.github.com/repos/${{ inputs.target_repo }}/actions/workflows")
+          
+          local http_code=$(echo "$response" | tail -n1)
+          local response_body=$(echo "$response" | sed '$d')
+          
+          echo "📊 HTTP Status: $http_code"
+          
+          # 4. Response verarbeiten
+          case "$http_code" in
+            200)
+              echo "✅ Successfully fetched workflow data"
+              echo "cache_hit=false" >> $GITHUB_OUTPUT
+              ;;
+            304)
+              echo "✅ No changes (304) - using cached data"
+              if [ -f "$cache_file" ]; then
+                cp "$cache_file" workflows.json
+                echo "cache_hit=true" >> $GITHUB_OUTPUT
+                return 0
+              fi
+              ;;
+            403)
+              echo "❌ Permission denied (403) - using fallback"
+              create_fallback_workflows
+              echo "cache_hit=false" >> $GITHUB_OUTPUT
+              echo "fallback_used=true" >> $GITHUB_OUTPUT
+              return 0
+              ;;
+            *)
+              echo "❌ API request failed with status $http_code"
+              create_fallback_workflows
+              echo "cache_hit=false" >> $GITHUB_OUTPUT
+              echo "fallback_used=true" >> $GITHUB_OUTPUT
+              return 0
+              ;;
+          esac
+          
+          # 5. Neue Daten speichern
+          local new_etag=$(echo "$response_body" | grep -i "etag:" | sed 's/.*etag: *//i; s/["\r\n]//g; s/^W\///')
+          
+          if [ -n "$new_etag" ] && [ "$new_etag" != "null" ]; then
+            echo "$new_etag" > "$etag_file"
+            echo "💾 Saved ETag: $new_etag"
+          else
+            rm -f "$etag_file"
+          fi
+          
+          # JSON Body extrahieren
+          echo "$response_body" | awk '/^\r?$/{f=1;next} f' > workflows.json
+          cp workflows.json "$cache_file"
+          
+          return 0
+        }
+        
+        # Fallback: Workflows aus Dateisystem erstellen
+        create_fallback_workflows() {
+          echo "📁 Creating fallback workflows.json from .github/workflows directory..."
+          
+          cat > workflows.json << 'EOF'
+        {
+          "total_count": 0,
+          "workflows": []
+        }
+        EOF
+          
+          if [ -d ".github/workflows" ]; then
+            echo "{" > workflows.json
+            echo '  "total_count": 0,' >> workflows.json
+            echo '  "workflows": [' >> workflows.json
+            
+            local first=true
+            local count=0
+            
+            for workflow in .github/workflows/*.yml .github/workflows/*.yaml; do
+              if [ -f "$workflow" ]; then
+                if [ "$first" = true ]; then
+                  first=false
+                else
+                  echo "    ," >> workflows.json
+                fi
+                
+                local name=$(grep -m1 "^name:" "$workflow" | sed 's/name: *//; s/["'"'"']//g' || basename "$workflow" .yml)
+                local filename=$(basename "$workflow")
+                
+                # Workflow-ID als Hash des Dateinamens simulieren
+                local workflow_id=$(echo "$filename" | cksum | cut -d' ' -f1)
+                
+                cat >> workflows.json << EOF
+            {
+              "id": $workflow_id,
+              "name": "$name",
+              "path": "$workflow",
+              "state": "active",
+              "created_at": "$(date -Iseconds)",
+              "updated_at": "$(date -Iseconds)"
+            }
+        EOF
+                count=$((count + 1))
+              fi
+            done
+            
+            echo "" >> workflows.json
+            echo "  ]," >> workflows.json
+            echo "  \"total_count\": $count" >> workflows.json
+            echo "}" >> workflows.json
+            
+            echo "📊 Created fallback with $count workflows"
+          fi
+        }
+        
+        # Workflows abrufen
+        get_workflows
+        
+        # Validierung
+        if [ -f "workflows.json" ]; then
+          echo "📋 Workflows loaded successfully"
+          if command -v jq >/dev/null 2>&1; then
+            total_count=$(jq -r '.total_count // 0' workflows.json)
+            target_count=$(jq -r "[.workflows[] | select(.name | startswith(\"${{ inputs.workflow_prefix }}\"))] | length" workflows.json)
+            echo "📊 Total workflows: $total_count"
+            echo "🎯 ${{ inputs.workflow_prefix }} workflows: $target_count"
+            echo "total_workflows=$total_count" >> $GITHUB_OUTPUT
+            echo "target_workflows=$target_count" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "❌ Failed to create workflows.json"
+          exit 1
+        fi
+
+    - name: Trigger GitHub Actions
+      id: trigger
+      shell: bash
+      run: |
+        if [ ! -f "workflows.json" ]; then
+          echo "❌ workflows.json not found"
+          exit 1
+        fi
+        
+        # Workflow-Inputs verarbeiten
+        workflow_inputs='${{ inputs.workflow_inputs }}'
+        if [ -z "$workflow_inputs" ] || [ "$workflow_inputs" = "{}" ]; then
+          workflow_inputs="{\"version\": \"$GITHUB_SHA\"}"
+        fi
+        
+        # Workflows filtern und triggern
+        if command -v jq >/dev/null 2>&1; then
+          workflows=$(jq -r ".workflows[] | select(.name | startswith(\"${{ inputs.workflow_prefix }}\")) | .id" workflows.json)
+        else
+          # Fallback ohne jq
+          workflows=$(grep -A 10 -B 2 "\"name\": \"${{ inputs.workflow_prefix }}" workflows.json | grep '"id":' | sed 's/.*"id": *//; s/,$//')
+        fi
+        
+        if [ -z "$workflows" ]; then
+          echo "⚠️ No ${{ inputs.workflow_prefix }} workflows found"
+          echo "triggered_count=0" >> $GITHUB_OUTPUT
+          echo "workflow_ids=" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        echo "🚀 Found workflows to trigger:"
+        echo "$workflows"
+        
+        triggered_count=0
+        triggered_ids=""
+        
+        for workflow_id in $workflows; do
+          echo "🔄 Triggering workflow ID: $workflow_id"
+          
+          # Retry-Logik mit exponential backoff
+          success=false
+          for i in {1..3}; do
+            response=$(curl -s -w "%{http_code}" -X POST \
+              -H "Accept: application/vnd.github.v3+json" \
+              -H "Authorization: token ${{ inputs.github_token }}" \
+              "https://api.github.com/repos/${{ inputs.target_repo }}/actions/workflows/$workflow_id/dispatches" \
+              -d "{\"ref\":\"${{ inputs.ref }}\", \"inputs\": $workflow_inputs}")
+            
+            http_code="${response: -3}"
+            
+            if [ "$http_code" == "204" ]; then
+              echo "✅ Successfully triggered workflow $workflow_id"
+              triggered_count=$((triggered_count + 1))
+              if [ -z "$triggered_ids" ]; then
+                triggered_ids="$workflow_id"
+              else
+                triggered_ids="$triggered_ids,$workflow_id"
+              fi
+              success=true
+              break
+            elif [ "$http_code" == "403" ] || [ "$http_code" == "429" ]; then
+              echo "⚠️ Rate limit hit for workflow $workflow_id, waiting..."
+              sleep $((i * 10))  # 10s, 20s, 30s
+            else
+              echo "❌ Error $http_code for workflow $workflow_id"
+              echo "Response: ${response%???}"  # Response ohne HTTP code
+              break
+            fi
+          done
+          
+          if [ "$success" = false ]; then
+            echo "❌ Failed to trigger workflow $workflow_id after retries"
+          fi
+          
+          # Pause zwischen Workflows
+          sleep 2
+        done
+        
+        echo "triggered_count=$triggered_count" >> $GITHUB_OUTPUT
+        echo "workflow_ids=$triggered_ids" >> $GITHUB_OUTPUT
+        echo "🎉 Successfully triggered $triggered_count workflows"
+
+branding:
+  icon: 'play'
+  color: 'blue'

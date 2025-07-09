@@ -1,0 +1,29 @@
+name: Test Action
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test Action
+        id: test
+        uses: ./
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow_prefix: 'test'
+          target_repo: ${{ github.repository }}
+          cache_max_age: '300'
+
+      - name: Display Results
+        run: |
+          echo "Triggered workflows: ${{ steps.test.outputs.triggered_workflows }}"
+          echo "Workflow IDs: ${{ steps.test.outputs.workflow_ids }}"
