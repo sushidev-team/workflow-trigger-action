@@ -1,0 +1,44 @@
+# Contributing
+
+Thank you for your interest in contributing to this project! We welcome contributions from everyone.
+
+## How to Contribute
+
+### Reporting Issues
+- Check if the issue already exists
+- Use the issue template if available
+- Provide clear steps to reproduce the problem
+- Include relevant error messages and screenshots
+
+### Making Changes
+1. Fork the repository
+2. Create a new branch for your feature or fix
+3. Make your changes
+4. Test your changes thoroughly
+5. Submit a pull request
+
+### Pull Request Guidelines
+- Use a clear, descriptive title
+- Describe what your changes do and why
+- Reference any related issues
+- Make sure all tests pass
+- Keep your changes focused and atomic
+
+### Code Style
+- Follow the existing code style in the project
+- Use meaningful variable and function names
+- Add comments for complex logic
+- Keep functions small and focused
+
+### Getting Help
+If you need help or have questions, feel free to:
+- Open an issue for discussion
+- Ask questions in existing issues
+- Contact the maintainers
+
+## Code of Conduct
+Please be respectful and constructive in all interactions. We want to maintain a welcoming environment for everyone.
+
+---
+
+Thank you for contributing!
