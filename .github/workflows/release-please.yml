@@ -10,6 +10,7 @@ permissions:
   pull-requests: write
   packages: write
   id-token: write
+  issues: write
 
 name: Check Release
 
@@ -23,3 +24,4 @@ jobs:
         with:
           release-type: simple
           package-name: release-please-action
+          skip-github-release: false
