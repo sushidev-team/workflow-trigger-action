@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/sushidev-team/workflow-trigger-action/compare/v1.0.1...v1.0.2) (2025-07-10)
+
+
+### Bug Fixes
+
+* add marketplace gha setup ([5c4289b](https://github.com/sushidev-team/workflow-trigger-action/commit/5c4289bfb44727e270c5f2cf90e3c77d7bf0d302))
+
 ## [1.0.1](https://github.com/sushidev-team/workflow-trigger-action/compare/v1.0.0...v1.0.1) (2025-07-10)
 
 
