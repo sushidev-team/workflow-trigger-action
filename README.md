@@ -352,7 +352,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🏆 Credits
 
-Created and maintained by [SushiDev Team](https://github.com/sushidev-team).
+Created and maintained by [Sushi Dev GmbH](https://github.com/sushidev-team).
 
 ### Contributors
 - Add your name here by contributing!
