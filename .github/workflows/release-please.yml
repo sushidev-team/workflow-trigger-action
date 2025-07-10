@@ -25,3 +25,15 @@ jobs:
           release-type: simple
           package-name: release-please-action
           skip-github-release: false
+      # Marketplace Release nur bei neuem Release
+      - name: Publish to GitHub Marketplace
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v4
+          
+      - name: Create major version tag
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag -a v${{ steps.release.outputs.major }} -m "Release v${{ steps.release.outputs.major }}"
+          git push origin v${{ steps.release.outputs.major }} --force
