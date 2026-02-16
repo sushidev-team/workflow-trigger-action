@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/sushidev-team/workflow-trigger-action/compare/v2.0.0...v2.0.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* added better rate limit handling ([5cef096](https://github.com/sushidev-team/workflow-trigger-action/commit/5cef0961eb4c9a94c1e5b511994841d1ab23352a))
+
 ## [2.0.0](https://github.com/sushidev-team/workflow-trigger-action/compare/v1.0.3...v2.0.0) (2026-02-16)
 
 
