@@ -54,9 +54,10 @@ runs:
 
         echo "Payload: $body"
 
-        # Retry logic: 3 attempts with exponential backoff
+        # Retry logic: 3 attempts, rate-limit aware
         for attempt in 1 2 3; do
-          response=$(curl -s -o /tmp/dispatch_response.txt -w "%{http_code}" -X POST \
+          response=$(curl -s -o /tmp/dispatch_response.txt -D /tmp/dispatch_headers.txt \
+            -w "%{http_code}" -X POST \
             -H "Authorization: token ${{ inputs.github_token }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/${{ inputs.target_repo }}/dispatches" \
@@ -72,7 +73,24 @@ runs:
           echo "Attempt $attempt failed with HTTP $response: $response_body"
 
           if [ "$attempt" -lt 3 ]; then
-            delay=$((attempt * 5))
+            # For rate limits (403/429), use the reset header if available
+            if [ "$response" = "403" ] || [ "$response" = "429" ]; then
+              reset=$(grep -i '^x-ratelimit-reset:' /tmp/dispatch_headers.txt 2>/dev/null | tr -d '[:space:]' | cut -d: -f2)
+              if [ -n "$reset" ]; then
+                now=$(date +%s)
+                wait=$((reset - now + 1))
+                if [ "$wait" -gt 0 ] && [ "$wait" -le 120 ]; then
+                  echo "Rate limited. Waiting ${wait}s until reset..."
+                  sleep "$wait"
+                  continue
+                fi
+              fi
+              # Fallback: 30s, 60s
+              delay=$((attempt * 30))
+            else
+              # Other errors: 5s, 10s
+              delay=$((attempt * 5))
+            fi
             echo "Retrying in ${delay}s..."
             sleep "$delay"
           fi
