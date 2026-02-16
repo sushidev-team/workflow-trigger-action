@@ -1,16 +1,8 @@
 name: docker-stage-example
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to deploy'
-        required: false
-        default: 'latest'
-      environment:
-        description: 'Target environment'
-        required: false
-        default: 'staging'
+  repository_dispatch:
+    types: [test-dispatch, docker-stage]
 
 jobs:
   demo:
@@ -19,5 +11,6 @@ jobs:
       - name: Demo Step
         run: |
           echo "This is a demo workflow"
-          echo "Version: ${{ github.event.inputs.version }}"
-          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Event type: ${{ github.event.action }}"
+          echo "Version: ${{ github.event.client_payload.version }}"
+          echo "Ref: ${{ github.event.client_payload.ref }}"
