@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/sushidev-team/workflow-trigger-action/compare/v1.0.3...v2.0.0) (2026-02-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* new repository_dispatch based workflow dispatch method
+
+### Features
+
+* new repository_dispatch based workflow dispatch method ([f496d90](https://github.com/sushidev-team/workflow-trigger-action/commit/f496d905d8f8153deaca95210f81552d8a757891))
+
 ## [1.0.2](https://github.com/sushidev-team/workflow-trigger-action/compare/v1.0.1...v1.0.2) (2025-07-10)
 
 
